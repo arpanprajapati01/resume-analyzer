@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Resume Analyzer</title>
+<style>
+body{font-family:system-ui,sans-serif;max-width:760px;margin:2rem auto;padding:0 1rem;color:#1a1a1a}
+textarea{width:100%;height:110px}button{padding:.6rem 1.2rem;margin-top:.8rem;cursor:pointer}
+.score{font-size:2.4rem;font-weight:700}pre{white-space:pre-wrap;background:#f5f5f5;padding:1rem;border-radius:8px}
+.tag{display:inline-block;padding:2px 8px;margin:2px;border-radius:12px;font-size:.85rem}
+.ok{background:#d9f2e0}.no{background:#fadbd8}
+</style></head><body>
+<h1>📄 Resume Analyzer</h1>
+<p>Upload a PDF / DOCX / TXT resume. Paste a job description for an exact keyword match.</p>
+<input type="file" id="file" accept=".pdf,.docx,.txt"><br><br>
+<textarea id="jd" placeholder="Paste target Job Description (optional)"></textarea><br>
+<label><input type="checkbox" id="ai"> Also generate AI line-by-line report (needs ANTHROPIC_API_KEY on server)</label><br>
+<button onclick="run()">Analyze</button>
+<div id="out"></div>
+<script>
+async function run(){
+  const f=document.getElementById('file').files[0]; if(!f){alert('Choose a resume file');return;}
+  const fd=new FormData(); fd.append('file',f); fd.append('jd',document.getElementById('jd').value);
+  fd.append('ai',document.getElementById('ai').checked);
+  const out=document.getElementById('out'); out.textContent='Analyzing...';
+  const res=await fetch('/api/analyze',{method:'POST',body:fd}); const d=await res.json();
+  if(!res.ok){out.textContent=d.error||'Error';return;}
+  const r=d.report, esc=s=>String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+  const tags=(a,c)=>a.map(x=>`<span class="tag ${c}">${esc(x)}</span>`).join('');
+  const list=a=>a.length?'<ul>'+a.map(x=>`<li>${esc(x)}</li>`).join('')+'</ul>':'<p>None 🎉</p>';
+  out.innerHTML=`<h2>ATS Health Check Score</h2><div class="score">${r.score}/100</div>
+  <p><b>Parsing risk:</b> ${r.parsingRisk}</p>
+  <h3>Score breakdown</h3>${list(Object.entries(r.breakdown).map(([k,v])=>k+': '+v))}
+  <h3>Formatting issues</h3>${list(r.formattingIssues)}
+  <h3>Weak bullets</h3>${list(r.weakBullets)}
+  <h3>Missing elements</h3>${list(r.missingElements)}
+  <h3>Keyword match: ${r.keywordMatchPercent}%</h3>${tags(r.matchedKeywords,'ok')}${tags(r.missingKeywords,'no')}
+  <h3>Next steps</h3>${list(r.nextSteps)}`+(d.aiReport?`<h2>AI Report</h2><pre>${esc(d.aiReport)}</pre>`:'');
+}
+</script></body></html>
